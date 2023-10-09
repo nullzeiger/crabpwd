@@ -16,6 +16,12 @@ pub mod file {
         Ok(())
     }
 
+    pub fn open() -> Result<File> {
+        let file = filename();
+        let open_file =File::open(file)?;
+        Ok(open_file)
+    }
+
     pub fn delete() -> Result<()> {
         let file = filename();
         if Path::new(&(file)).exists() {
