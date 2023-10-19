@@ -3,13 +3,27 @@
 
 pub mod csv {
     use std::fs::File;
-    use std::io::{BufRead, BufReader};
+    use std::io::{BufRead, BufReader, Result, Write};
 
-    struct Password<'a> {
+    use crate::file::append;
+
+    pub struct Password<'a> {
         website: &'a str,
         username: &'a str,
         email: &'a str,
         pwd: &'a str,
+    }
+
+    pub fn create(password: Password) -> Result<()> {
+        if let Ok(mut file) = append() {
+            let website = password.website;
+            let username = password.username;
+            let email = password.email;
+            let pwd = password.email;
+            let new_password = [website, username, email, pwd].join(",");
+            file.write(new_password.as_bytes())?;
+        }
+        Ok(())
     }
 
     pub fn print_all(file: File) {
@@ -35,9 +49,15 @@ pub mod csv {
 pub mod file {
     use std::env;
     use std::fs;
-    use std::fs::File;
+    use std::fs::{File, OpenOptions};
     use std::io::Result;
     use std::path::Path;
+
+    pub fn append() -> Result<File> {
+        let file = filename();
+        let append_file = OpenOptions::new().append(true).open(file)?;
+        Ok(append_file)
+    }
 
     pub fn create() -> Result<()> {
         let file = filename();
