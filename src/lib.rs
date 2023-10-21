@@ -4,43 +4,59 @@
 pub mod csv {
     use std::fs::File;
     use std::io::{BufRead, BufReader, Result, Write};
+    use std::ops::Add;
 
     use crate::file::append;
 
     pub struct Password<'a> {
-        website: &'a str,
-        username: &'a str,
-        email: &'a str,
-        pwd: &'a str,
+        pub website: &'a str,
+        pub username: &'a str,
+        pub email: &'a str,
+        pub pwd: &'a str,
     }
 
-    pub fn create(password: Password) -> Result<()> {
-        if let Ok(mut file) = append() {
-            let website = password.website;
-            let username = password.username;
-            let email = password.email;
-            let pwd = password.email;
-            let new_password = [website, username, email, pwd].join(",");
-            file.write(new_password.as_bytes())?;
+    pub fn new(password: Password) -> Result<()> {
+        let append_file = append();
+        match append_file {
+            Ok(mut file) => {
+                let website = password.website;
+                let username = password.username;
+                let email = password.email;
+                let pwd = password.email;
+                let new_password = [website, username, email, pwd].join(",").add("\n");
+                file.write_all(new_password.as_bytes())?;
+            }
+            Err(error) => panic!("Error append file {:?}", error),
         }
         Ok(())
     }
 
     pub fn print_all(file: File) {
         let lines = BufReader::new(file).lines();
+        let mut i = 0;
         for pwds in lines.skip(1) {
-            if let Ok(pwd_line) = pwds {
-                let pwd_values: Vec<&str> = pwd_line.split(',').collect();
-                let password = Password {
-                    website: pwd_values[0],
-                    username: pwd_values[1],
-                    email: pwd_values[2],
-                    pwd: pwd_values[3],
-                };
-                println!(
-                    "Website: {} Username: {} Email: {} Password: {}",
-                    password.website, password.username, password.email, password.pwd
-                );
+            let pwd_line = pwds;
+            match pwd_line {
+                Ok(line) => {
+                    let pwd_values: Vec<&str> = line.split(',').collect();
+                    if pwd_values.len() == 4 {
+                        let password = Password {
+                            website: pwd_values[0],
+                            username: pwd_values[1],
+                            email: pwd_values[2],
+                            pwd: pwd_values[3],
+                        };
+
+                        i += 1;
+                        println!(
+                            "Index: {} Website: {} Username: {} Email: {} Password: {}",
+                            i, password.website, password.username, password.email, password.pwd
+                        );
+                    } else {
+                        eprintln!(".pwd.csv document not formatted correctly in this line");
+                    }
+                }
+                Err(error) => panic!("Error read file lines {:?}", error),
             }
         }
     }
@@ -83,7 +99,7 @@ pub mod file {
 
     fn filename() -> String {
         let key = "HOME";
-        let csv_file = "/.pwd.csv";
+        let csv_file = "/.pwdbk.csv";
         let home = env::var(key).expect("$HOME is not set");
         home + csv_file
     }
