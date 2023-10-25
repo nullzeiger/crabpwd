@@ -6,13 +6,37 @@ pub mod csv {
     use std::io::{BufRead, BufReader, Result, Write};
     use std::ops::Add;
 
-    use crate::file::append;
+    use crate::file::{append, open};
 
     pub struct Password<'a> {
         pub website: &'a str,
         pub username: &'a str,
         pub email: &'a str,
         pub pwd: &'a str,
+    }
+
+    pub fn search(key: &str) {
+        let open_file = open();
+        match open_file {
+            Ok(file) => {
+                let lines = BufReader::new(file).lines();
+                for pwds in lines.skip(1) {
+                    match pwds {
+                        Ok(line) => {
+                            if let Some(result) = line.find(key) {
+                                if let Some(line_result) = line.get(result..) {
+                                    println!("Search result: {}", line_result);
+                                }
+                            } else {
+                                println!("Not found");
+                            }
+                        }
+                        Err(error) => panic!("Error read file lines {:?}", error),
+                    }
+                }
+            }
+            Err(error) => panic!("Error open file: {:?}", error),
+        }
     }
 
     pub fn new(password: Password) -> Result<()> {
