@@ -25,18 +25,13 @@ pub mod csv {
                         Ok(line) => {
                             if let Some(result) = line.find(key) {
                                 if let Some(line_result) = line.get(result..) {
-<<<<<<< HEAD
-                                    return Some(line_result.to_string());
-=======
                                     return Some(line_result.to_string())
->>>>>>> 92930775fded623790ef07a2c8e95492fd03a989
                                 }
                             }
                         }
                         Err(error) => panic!("Error read file lines {:?}", error),
                     }
                 }
-                None
             }
             Err(error) => panic!("Error open file: {:?}", error),
         }
