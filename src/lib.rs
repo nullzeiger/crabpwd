@@ -15,20 +15,18 @@ pub mod csv {
         pub pwd: &'a str,
     }
 
-    pub fn search(key: &str) {
+    pub fn search(key: &str) -> Option<String> {
         let open_file = open();
         match open_file {
             Ok(file) => {
                 let lines = BufReader::new(file).lines();
-                for pwds in lines.skip(1) {
+                for pwds in lines {
                     match pwds {
                         Ok(line) => {
                             if let Some(result) = line.find(key) {
                                 if let Some(line_result) = line.get(result..) {
-                                    println!("Search result: {}", line_result);
+                                    return Some(line_result.to_string());
                                 }
-                            } else {
-                                println!("Not found");
                             }
                         }
                         Err(error) => panic!("Error read file lines {:?}", error),
@@ -37,6 +35,7 @@ pub mod csv {
             }
             Err(error) => panic!("Error open file: {:?}", error),
         }
+        None
     }
 
     pub fn new(password: Password) -> Result<()> {
