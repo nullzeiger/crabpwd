@@ -1,12 +1,11 @@
-// Copyright (c) Ivan Guerreschi. All rights reserved.
+// Copyright (c) 2023 Ivan Guerreschi. All rights reserved.
 // Licensed under the MIT License. See LICENSE in the project root for license information.
 
 pub mod csv {
+    use crate::file::{append, open};
     use std::fs::File;
     use std::io::{BufRead, BufReader, Result, Write};
     use std::ops::Add;
-
-    use crate::file::{append, open};
 
     pub struct Password<'a> {
         pub website: &'a str,
@@ -19,13 +18,13 @@ pub mod csv {
         let open_file = open();
         match open_file {
             Ok(file) => {
-                let lines = BufReader::new(file).lines();
+                let lines = BufReader::new(file).lines().skip(1);
                 for pwds in lines {
                     match pwds {
                         Ok(line) => {
                             if let Some(result) = line.find(key) {
                                 if let Some(line_result) = line.get(result..) {
-                                    return Some(line_result.to_string())
+                                    return Some(line_result.to_string());
                                 }
                             }
                         }
@@ -55,9 +54,9 @@ pub mod csv {
     }
 
     pub fn print_all(file: File) {
-        let lines = BufReader::new(file).lines();
+        let lines = BufReader::new(file).lines().skip(1);
         let mut i = 0;
-        for pwds in lines.skip(1) {
+        for pwds in lines {
             let pwd_line = pwds;
             match pwd_line {
                 Ok(line) => {
@@ -122,7 +121,7 @@ pub mod file {
 
     fn filename() -> String {
         let key = "HOME";
-        let csv_file = "/.pwdbk.csv";
+        let csv_file = "/.pwd.csv";
         let home = env::var(key).expect("$HOME is not set");
         home + csv_file
     }
