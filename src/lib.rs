@@ -122,7 +122,9 @@ pub mod file {
     fn filename() -> String {
         let key = "HOME";
         let csv_file = "/.pwd.csv";
-        let home = env::var(key).expect("$HOME is not set");
-        home + csv_file
+        match env::var(key) {
+            Ok(home) => home + csv_file,
+            Err(error) => panic!("${}, is not set {}", key, error),
+        }
     }
 }

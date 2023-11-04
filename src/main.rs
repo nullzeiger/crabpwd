@@ -59,7 +59,7 @@ fn main() {
                 println!("Username");
                 io::stdin()
                     .read_line(&mut username)
-                    .expect("Enter Username");
+                    .expect("Failed to read line");
                 username = username.trim().to_string();
 
                 println!("Email");
