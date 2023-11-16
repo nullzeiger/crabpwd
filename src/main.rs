@@ -4,7 +4,7 @@
 use std::env;
 use std::io;
 
-use crabpwd::csv::{new, print_all, search, Password};
+use crabpwd::csv::{delete, new, print_all, search, Password};
 use crabpwd::file::{create, open};
 
 fn help() {
@@ -13,6 +13,7 @@ fn help() {
         crabpwd Password manager\n
         a    Print all password
         s    <String>  Search password
+        d    <Int>     Delete password    
         n    Create new password
         "
     );
@@ -102,9 +103,16 @@ fn main() {
                     Some(search) => println!("{}", search),
                     None => println!("Not found"),
                 }
-            } else {
-                eprintln!("Error invalid command");
-                help();
+            }
+            if cmd == "d" {
+                let number: usize = key.parse().expect("Not a valid number");
+                let result_delete = delete(number);
+                match result_delete {
+                    Ok(_) => println!("Delete password in position {}", key),
+                    Err(error) => {
+                        eprintln!("Error to delete password in position {} {}", key, error)
+                    }
+                }
             }
         }
         _ => {

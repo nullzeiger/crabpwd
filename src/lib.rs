@@ -2,8 +2,8 @@
 // Licensed under the MIT License. See LICENSE in the project root for license information.
 
 pub mod csv {
-    use crate::file::{append, open};
-    use std::fs::File;
+    use crate::file::{append, delete_file, filename, open, rename};
+    use std::fs::{self, File};
     use std::io::{BufRead, BufReader, Result, Write};
     use std::ops::Add;
 
@@ -14,11 +14,45 @@ pub mod csv {
         pub pwd: &'a str,
     }
 
+    pub fn delete(key: usize) -> Result<()> {
+        let open_file = open();
+        match open_file {
+            Ok(file) => {
+                let lines = BufReader::new(file).lines();
+                let mut pwd = Vec::new();
+                for (i, pwds) in lines.enumerate() {
+                    match pwds {
+                        Ok(line) => {
+                            if i + 1 != key {
+                                pwd.push(line);
+                            }
+                        }
+                        Err(error) => panic!("Error read file liner {:?}", error),
+                    }
+                }
+                let file_tmp = filename("/.pwd_tmp.csv");
+                fs::write(file_tmp, pwd.join("\n"))?;
+                let delete_original_file = delete_file();
+                match delete_original_file {
+                    Ok(_) => println!("File deleted"),
+                    Err(error) => panic!("Error delete file {:?}", error),
+                }
+                let rename_file = rename();
+                match rename_file {
+                    Ok(_) => println!("File rename"),
+                    Err(error) => panic!("Error rename file {:?}", error),
+                }
+            }
+            Err(error) => panic!("Error open file {:?}", error),
+        }
+        Ok(())
+    }
+
     pub fn search(key: &str) -> Option<String> {
         let open_file = open();
         match open_file {
             Ok(file) => {
-                let lines = BufReader::new(file).lines().skip(1);
+                let lines = BufReader::new(file).lines();
                 for pwds in lines {
                     match pwds {
                         Ok(line) => {
@@ -54,7 +88,7 @@ pub mod csv {
     }
 
     pub fn print_all(file: File) {
-        let lines = BufReader::new(file).lines().skip(1);
+        let lines = BufReader::new(file).lines();
         let mut i = 0;
         for pwds in lines {
             let pwd_line = pwds;
@@ -91,14 +125,16 @@ pub mod file {
     use std::io::Result;
     use std::path::Path;
 
+    const CSV_FILE: &str = "/.pwd.csv";
+
     pub fn append() -> Result<File> {
-        let file = filename();
+        let file = filename(CSV_FILE);
         let append_file = OpenOptions::new().append(true).open(file)?;
         Ok(append_file)
     }
 
     pub fn create() -> Result<()> {
-        let file = filename();
+        let file = filename(CSV_FILE);
         if !Path::new(&(file)).exists() {
             File::create(file)?;
         }
@@ -106,24 +142,28 @@ pub mod file {
     }
 
     pub fn open() -> Result<File> {
-        let file = filename();
+        let file = filename(CSV_FILE);
         let open_file = File::open(file)?;
         Ok(open_file)
     }
 
-    pub fn delete() -> Result<()> {
-        let file = filename();
+    pub fn delete_file() -> Result<()> {
+        let file = filename(CSV_FILE);
         if Path::new(&(file)).exists() {
             fs::remove_file(file)?;
         }
         Ok(())
     }
 
-    fn filename() -> String {
+    pub fn rename() -> Result<()> {
+        fs::rename(filename("/.pwd_tmp.csv"), filename(CSV_FILE))?;
+        Ok(())
+    }
+
+    pub fn filename(file: &str) -> String {
         let key = "HOME";
-        let csv_file = "/.pwd.csv";
         match env::var(key) {
-            Ok(home) => home + csv_file,
+            Ok(home) => home + file,
             Err(error) => panic!("${}, is not set {}", key, error),
         }
     }
