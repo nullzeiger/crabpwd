@@ -53,7 +53,7 @@ struct SearchArgs {
 fn main() {
     let create_file = create();
     match create_file {
-        Ok(_) => println!("File create"),
+        Ok(_) => println!("Created or existing file"),
         Err(error) => eprintln!("Error create file {:?}", error),
     }
 
