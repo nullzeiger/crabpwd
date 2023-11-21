@@ -28,8 +28,8 @@ enum Commands {
 
 #[derive(Args)]
 struct AllArgs {
-    #[arg(default_value_t = 0)]
-    number: usize,
+    #[arg(default_value_t = -1)]
+    number: i32,
 }
 
 #[derive(Args)]
@@ -64,7 +64,7 @@ fn main() {
             let open_file = open();
             match open_file {
                 Ok(file) => {
-                    print_all(file);
+                    print_all(file, _number.number);
                 }
                 Err(error) => eprintln!("Error print all password: {:?}", error),
             }

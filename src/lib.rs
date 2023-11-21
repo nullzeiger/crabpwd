@@ -87,7 +87,7 @@ pub mod csv {
         Ok(())
     }
 
-    pub fn print_all(file: File) {
+    pub fn print_all(file: File, number_row: i32) {
         let lines = BufReader::new(file).lines();
         let mut i = 0;
         for pwds in lines {
@@ -102,7 +102,6 @@ pub mod csv {
                             email: pwd_values[2],
                             pwd: pwd_values[3],
                         };
-
                         i += 1;
                         println!(
                             "Index: {} Website: {} Username: {} Email: {} Password: {}",
@@ -113,6 +112,11 @@ pub mod csv {
                     }
                 }
                 Err(error) => panic!("Error read file lines {:?}", error),
+            }
+            if number_row == -1 {
+                continue;
+            } else if i > number_row - 1 {
+                break;
             }
         }
     }
