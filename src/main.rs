@@ -51,10 +51,8 @@ struct SearchArgs {
 }
 
 fn main() {
-    let create_file = create();
-    match create_file {
-        Ok(_) => println!("Created or existing file"),
-        Err(error) => eprintln!("Error create file {:?}", error),
+    if let Err(error) = create() {
+        eprintln!("Error create file {:?}", error)
     }
 
     let cli = Cli::parse();
