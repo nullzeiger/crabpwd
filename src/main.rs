@@ -1,15 +1,22 @@
-use clap::{Args, Parser, Subcommand};
-use std::env;
-use std::fmt;
-use std::fs::{self, File, OpenOptions};
-use std::io::{self, Write};
-use std::io::{BufRead, BufReader};
-use std::path::PathBuf;
-use std::process;
+// --- Crates and Modules ---
+// Import necessary external crates and standard library modules.
+use clap::{Args, Parser, Subcommand}; // For parsing command-line arguments.
+use serde::{Deserialize, Serialize}; // For serializing and deserializing data (to/from JSON).
+use std::env; // For accessing environment variables (like the HOME directory).
+use std::fmt; // For custom formatting (e.g., for the Error type).
+use std::fs::File; // For file I/O operations.
+use std::io::{self, Write}; // For standard input/output, including flushing stdout.
+use std::path::PathBuf; // For handling file system paths in a cross-platform way.
+use std::process; // For exiting the process with a specific status code.
 
-const CSV_FILE: &str = ".pwd.csv";
-const CSV_TEMP_FILE: &str = ".pwd_tmp.csv";
+// --- Constants ---
+/// The name of the JSON file where passwords will be stored.
+const JSON_FILE: &str = ".pwd.json";
 
+// --- Command-Line Interface Definition ---
+
+/// Defines the main command-line interface structure using clap.
+/// This is the top-level command that holds all subcommands.
 #[derive(Parser)]
 #[command(
     name = "crabpwd",
@@ -24,6 +31,7 @@ struct Cli {
     command: Commands,
 }
 
+/// Enumerates the available subcommands for the application.
 #[derive(Subcommand)]
 enum Commands {
     /// List all passwords (or first N passwords)
@@ -36,6 +44,7 @@ enum Commands {
     Search(SearchArgs),
 }
 
+/// Defines the arguments for the 'list' subcommand.
 #[derive(Args)]
 struct ListArgs {
     /// Number of passwords to display (default: all)
@@ -43,6 +52,7 @@ struct ListArgs {
     limit: Option<usize>,
 }
 
+/// Defines the arguments for the 'delete' subcommand.
 #[derive(Args)]
 struct DeleteArgs {
     /// Index of the password to delete (1-based)
@@ -50,6 +60,7 @@ struct DeleteArgs {
     index: usize,
 }
 
+/// Defines the arguments for the 'add' subcommand.
 #[derive(Args)]
 struct AddArgs {
     /// Website or service name
@@ -69,6 +80,7 @@ struct AddArgs {
     interactive: bool,
 }
 
+/// Defines the arguments for the 'search' subcommand.
 #[derive(Args)]
 struct SearchArgs {
     /// Search term to match against website, username, or email
@@ -76,6 +88,10 @@ struct SearchArgs {
     query: Option<String>,
 }
 
+// --- Custom Error and Result Types ---
+
+/// A custom error type for all possible failures in the application.
+/// This consolidates different error kinds into a single, manageable type.
 #[derive(Debug)]
 pub enum PasswordManagerError {
     Io(std::io::Error),
@@ -84,6 +100,7 @@ pub enum PasswordManagerError {
     InvalidFormat(String),
 }
 
+/// Formats the error for user-friendly display in the terminal.
 impl fmt::Display for PasswordManagerError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
@@ -95,15 +112,22 @@ impl fmt::Display for PasswordManagerError {
     }
 }
 
+/// Allows for the automatic conversion from `std::io::Error` into our custom error type.
+/// This is a convenient way to handle I/O errors using the `?` operator.
 impl From<std::io::Error> for PasswordManagerError {
     fn from(err: std::io::Error) -> Self {
         PasswordManagerError::Io(err)
     }
 }
 
+/// A convenient type alias for `std::result::Result` using our custom error type.
 type Result<T> = std::result::Result<T, PasswordManagerError>;
 
-#[derive(Debug, Clone)]
+// --- Data Structure ---
+
+/// Represents a single password entry with its associated data.
+/// It can be serialized to and deserialized from JSON.
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Password {
     pub website: String,
     pub username: String,
@@ -112,19 +136,19 @@ pub struct Password {
 }
 
 impl Password {
+    /// Creates a new `Password` instance after validating that no required fields are empty.
+    /// Returns an `Err` if any field is just whitespace.
     pub fn new(website: String, username: String, email: String, pwd: String) -> Result<Self> {
         if website.trim().is_empty() {
             return Err(PasswordManagerError::InvalidFormat(
                 "Website cannot be empty".to_string(),
             ));
         }
-
         if username.trim().is_empty() {
             return Err(PasswordManagerError::InvalidFormat(
                 "Username cannot be empty".to_string(),
             ));
         }
-
         if email.trim().is_empty() {
             return Err(PasswordManagerError::InvalidFormat(
                 "Email cannot be empty".to_string(),
@@ -143,32 +167,9 @@ impl Password {
             pwd: pwd.trim().to_string(),
         })
     }
-
-    fn to_csv_line(&self) -> String {
-        format!(
-            "{},{},{},{}\n",
-            self.website, self.username, self.email, self.pwd
-        )
-    }
-
-    fn from_csv_line(line: &str) -> Result<Self> {
-        let parts: Vec<&str> = line.split(',').collect();
-        if parts.len() != 4 {
-            return Err(PasswordManagerError::InvalidFormat(format!(
-                "Expected 4 fields, found {}",
-                parts.len()
-            )));
-        }
-
-        Password::new(
-            parts[0].to_string(),
-            parts[1].to_string(),
-            parts[2].to_string(),
-            parts[3].to_string(),
-        )
-    }
 }
 
+/// Defines how a `Password` entry is displayed as a string.
 impl fmt::Display for Password {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
@@ -179,49 +180,57 @@ impl fmt::Display for Password {
     }
 }
 
+// --- File System Utilities ---
+
+/// Resolves the path to the user's home directory.
 fn get_home_dir() -> Result<PathBuf> {
     env::var("HOME").map(PathBuf::from).map_err(|_| {
         PasswordManagerError::NotFound("HOME environment variable not set".to_string())
     })
 }
 
-fn get_csv_path() -> Result<PathBuf> {
-    Ok(get_home_dir()?.join(CSV_FILE))
+/// Constructs the full path to the JSON storage file (e.g., "/home/user/.pwd.json").
+fn get_json_path() -> Result<PathBuf> {
+    Ok(get_home_dir()?.join(JSON_FILE))
 }
 
-fn get_temp_csv_path() -> Result<PathBuf> {
-    Ok(get_home_dir()?.join(CSV_TEMP_FILE))
-}
+// --- Data Persistence Logic ---
 
-fn create_if_not_exists() -> Result<()> {
-    let path = get_csv_path()?;
+/// Reads and deserializes passwords from the JSON file.
+/// Returns an empty vector if the file doesn't exist yet.
+fn load_passwords() -> Result<Vec<Password>> {
+    let path = get_json_path()?;
     if !path.exists() {
-        File::create(path)?;
+        return Ok(Vec::new()); // No file, so no passwords. This is not an error.
     }
+    let file = File::open(path)?;
+    let passwords: Vec<Password> =
+        serde_json::from_reader(file).map_err(|e| PasswordManagerError::Parse(e.to_string()))?;
+    Ok(passwords)
+}
+
+/// Serializes the given password list and writes it to the JSON file.
+/// This will overwrite any existing content in the file.
+fn save_passwords(passwords: &[Password]) -> Result<()> {
+    let path = get_json_path()?;
+    let file = File::create(path)?;
+    serde_json::to_writer_pretty(file, passwords) // `to_writer_pretty` for human-readable JSON.
+        .map_err(|e| PasswordManagerError::Parse(e.to_string()))?;
     Ok(())
 }
 
-fn open_for_reading() -> Result<File> {
-    let path = get_csv_path()?;
-    File::open(path).map_err(PasswordManagerError::from)
-}
+// --- Core Application Logic ---
 
-fn open_for_appending() -> Result<File> {
-    let path = get_csv_path()?;
-    OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(path)
-        .map_err(PasswordManagerError::from)
-}
-
+/// Adds a new password to the store by loading, appending, and re-saving the list.
 fn add_password(password: Password) -> Result<()> {
-    let mut file = open_for_appending()?;
-    file.write_all(password.to_csv_line().as_bytes())?;
+    let mut passwords = load_passwords()?;
+    passwords.push(password);
+    save_passwords(&passwords)?;
     println!("Password added successfully");
     Ok(())
 }
 
+/// Deletes a password from the store at a given 1-based index.
 fn delete_password(index: usize) -> Result<()> {
     if index == 0 {
         return Err(PasswordManagerError::InvalidFormat(
@@ -229,88 +238,59 @@ fn delete_password(index: usize) -> Result<()> {
         ));
     }
 
-    let file = open_for_reading()?;
-    let reader = BufReader::new(file);
-    let mut passwords = Vec::new();
-
-    // Read all passwords except the one to delete
-    for (i, line_result) in reader.lines().enumerate() {
-        let line = line_result?;
-        if !line.trim().is_empty() && i + 1 != index {
-            passwords.push(line);
-        }
+    let mut passwords = load_passwords()?;
+    if index > passwords.len() {
+        return Err(PasswordManagerError::NotFound(format!(
+            "No password found at index {}",
+            index
+        )));
     }
 
-    // Write to temporary file
-    let temp_path = get_temp_csv_path()?;
-    fs::write(&temp_path, passwords.join("\n") + "\n")?;
-
-    // Replace original file with temporary file
-    let original_path = get_csv_path()?;
-    fs::rename(temp_path, original_path)?;
-
+    passwords.remove(index - 1); // Convert 1-based index to 0-based for vector access.
+    save_passwords(&passwords)?;
     println!("Password at index {} deleted successfully", index);
     Ok(())
 }
 
+/// Searches for passwords matching a query string.
+/// The search is case-insensitive and checks the website, username, and email fields.
 fn search_passwords(query: &str) -> Result<Vec<(usize, Password)>> {
-    let file = open_for_reading()?;
-    let reader = BufReader::new(file);
-    let mut results = Vec::new();
+    let passwords = load_passwords()?;
     let query_lower = query.to_lowercase();
-
-    for (index, line_result) in reader.lines().enumerate() {
-        let line = line_result?;
-        if line.trim().is_empty() {
-            continue;
-        }
-
-        match Password::from_csv_line(&line) {
-            Ok(password) => {
-                if password.website.to_lowercase().contains(&query_lower)
-                    || password.username.to_lowercase().contains(&query_lower)
-                    || password.email.to_lowercase().contains(&query_lower)
-                {
-                    results.push((index + 1, password));
-                }
+    let results = passwords
+        .into_iter()
+        .enumerate()
+        .filter_map(|(i, pwd)| {
+            if pwd.website.to_lowercase().contains(&query_lower)
+                || pwd.username.to_lowercase().contains(&query_lower)
+                || pwd.email.to_lowercase().contains(&query_lower)
+            {
+                Some((i + 1, pwd)) // Return with 1-based index for display.
+            } else {
+                None
             }
-            Err(e) => {
-                eprintln!("Warning: Skipping malformed line {}: {}", index + 1, e);
-            }
-        }
+        })
+        .collect();
+    Ok(results)
+}
+
+/// Retrieves all stored passwords, optionally limited to a certain number.
+fn list_passwords(limit: Option<usize>) -> Result<Vec<(usize, Password)>> {
+    let passwords = load_passwords()?;
+    let mut results: Vec<(usize, Password)> = passwords
+        .into_iter()
+        .enumerate()
+        .map(|(i, pwd)| (i + 1, pwd)) // Map to 1-based index.
+        .collect();
+
+    if let Some(lim) = limit {
+        results.truncate(lim); // Apply the limit if provided.
     }
 
     Ok(results)
 }
 
-fn list_passwords(limit: Option<usize>) -> Result<Vec<(usize, Password)>> {
-    let file = open_for_reading()?;
-    let reader = BufReader::new(file);
-    let mut passwords = Vec::new();
-
-    for (index, line_result) in reader.lines().enumerate() {
-        if let Some(limit) = limit
-            && index >= limit
-        {
-            break;
-        }
-
-        let line = line_result?;
-        if line.trim().is_empty() {
-            continue;
-        }
-
-        match Password::from_csv_line(&line) {
-            Ok(password) => passwords.push((index + 1, password)),
-            Err(e) => {
-                eprintln!("Warning: Skipping malformed line {}: {}", index + 1, e);
-            }
-        }
-    }
-
-    Ok(passwords)
-}
-
+/// A helper function to print a list of passwords to the console.
 fn print_passwords(passwords: &[(usize, Password)]) {
     if passwords.is_empty() {
         println!("No passwords found.");
@@ -322,6 +302,10 @@ fn print_passwords(passwords: &[(usize, Password)]) {
     }
 }
 
+// --- Main Application Flow ---
+
+/// The standard main entry point for the program.
+/// It calls the `run` function and handles any top-level errors gracefully.
 fn main() {
     if let Err(e) = run() {
         eprintln!("Error: {}", e);
@@ -329,13 +313,9 @@ fn main() {
     }
 }
 
+/// The application's primary logic function.
+/// It parses CLI arguments and dispatches to the appropriate handler function.
 fn run() -> Result<()> {
-    // Ensure the password file exists
-    create_if_not_exists().map_err(|e| {
-        eprintln!("Failed to initialize password file: {}", e);
-        e
-    })?;
-
     let cli = Cli::parse();
 
     match cli.command {
@@ -346,6 +326,9 @@ fn run() -> Result<()> {
     }
 }
 
+// --- Subcommand Handlers ---
+
+/// Handles the 'list' subcommand.
 fn handle_list(args: ListArgs) -> Result<()> {
     let passwords = list_passwords(args.limit)?;
 
@@ -366,10 +349,13 @@ fn handle_list(args: ListArgs) -> Result<()> {
     Ok(())
 }
 
+/// Handles the 'add' subcommand, deciding between interactive and non-interactive mode.
 fn handle_add(args: AddArgs) -> Result<()> {
     let password = if args.interactive || are_any_fields_missing(&args) {
+        // If interactive flag is set or any field is missing, start interactive mode.
         collect_password_interactively(args)?
     } else {
+        // Otherwise, create the password directly from arguments.
         create_password_from_args(args)?
     };
 
@@ -379,6 +365,7 @@ fn handle_add(args: AddArgs) -> Result<()> {
     Ok(())
 }
 
+/// Handles the 'delete' subcommand, including a confirmation prompt.
 fn handle_delete(args: DeleteArgs) -> Result<()> {
     if args.index == 0 {
         return Err(PasswordManagerError::InvalidFormat(
@@ -387,7 +374,7 @@ fn handle_delete(args: DeleteArgs) -> Result<()> {
         ));
     }
 
-    // Show the password that will be deleted for confirmation
+    // Fetch the password to be deleted to show it in the confirmation prompt.
     let passwords = list_passwords(None)?;
     let password_to_delete = passwords
         .iter()
@@ -415,6 +402,7 @@ fn handle_delete(args: DeleteArgs) -> Result<()> {
     Ok(())
 }
 
+/// Handles the 'search' subcommand.
 fn handle_search(args: SearchArgs) -> Result<()> {
     let query = match args.query {
         Some(q) if !q.trim().is_empty() => q,
@@ -439,6 +427,9 @@ fn handle_search(args: SearchArgs) -> Result<()> {
     Ok(())
 }
 
+// --- Interactive Mode Helpers ---
+
+/// Checks if any of the required fields are missing from the command-line arguments.
 fn are_any_fields_missing(args: &AddArgs) -> bool {
     args.website.is_none()
         || args.username.is_none()
@@ -446,6 +437,8 @@ fn are_any_fields_missing(args: &AddArgs) -> bool {
         || args.password.is_none()
 }
 
+/// Constructs a `Password` struct from the provided command-line arguments.
+/// Returns an error if any required argument is missing.
 fn create_password_from_args(args: AddArgs) -> Result<Password> {
     let website = args
         .website
@@ -466,6 +459,8 @@ fn create_password_from_args(args: AddArgs) -> Result<Password> {
     Password::new(website, username, email, password)
 }
 
+/// Prompts the user to enter each password field interactively.
+/// It uses values from arguments if they were provided, otherwise it prompts for them.
 fn collect_password_interactively(args: AddArgs) -> Result<Password> {
     println!("=== Adding New Password ===");
     println!("Fill in the required information:");
@@ -483,18 +478,34 @@ fn collect_password_interactively(args: AddArgs) -> Result<Password> {
         prompt_for_input("Email (required)", false).unwrap_or_else(|_| process::exit(1))
     });
 
+    // Use the secure password prompt.
     let password = args.password.unwrap_or_else(|| {
-        prompt_for_input("Password (required)", true).unwrap_or_else(|_| process::exit(1))
+        prompt_for_password("Password (required)").unwrap_or_else(|_| process::exit(1))
     });
 
     println!();
     Password::new(website, username, email, password)
 }
 
+/// Prompts the user for a password securely without echoing input to the terminal.
+fn prompt_for_password(prompt: &str) -> io::Result<String> {
+    loop {
+        // `rpassword::prompt_password` handles hiding the input.
+        let input = rpassword::prompt_password(format!("{}: ", prompt))?;
+        if input.trim().is_empty() {
+            println!("This field is required. Please enter a value.");
+            continue; // Re-prompt if the input is empty.
+        }
+        return Ok(input.trim().to_string());
+    }
+}
+
+/// Prompts the user for standard input, echoing it to the terminal.
+/// Includes validation to ensure required fields are not empty.
 fn prompt_for_input(prompt: &str, required: bool) -> io::Result<String> {
     loop {
         print!("{}: ", prompt);
-        io::stdout().flush()?;
+        io::stdout().flush()?; // Ensure the prompt is displayed before waiting for input.
 
         let mut input = String::new();
         io::stdin().read_line(&mut input)?;
@@ -502,13 +513,14 @@ fn prompt_for_input(prompt: &str, required: bool) -> io::Result<String> {
 
         if input.is_empty() && required {
             println!("This field is required. Please enter a value.");
-            continue;
+            continue; // Re-prompt.
         }
 
         return Ok(input);
     }
 }
 
+/// Displays a confirmation prompt and waits for a yes/no answer from the user.
 fn confirm_action(message: &str) -> io::Result<bool> {
     loop {
         print!("{} (y/N): ", message);
@@ -519,19 +531,19 @@ fn confirm_action(message: &str) -> io::Result<bool> {
 
         match input.trim().to_lowercase().as_str() {
             "y" | "yes" => return Ok(true),
-            "n" | "no" | "" => return Ok(false),
+            "n" | "no" | "" => return Ok(false), // Default to 'no' if Enter is pressed.
             _ => println!("Please enter 'y' for yes or 'n' for no."),
         }
     }
 }
 
+// --- Unit Tests ---
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn test_cli_parsing() {
-        // Test that CLI commands parse correctly
         let cli = Cli::try_parse_from(&["crabpwd", "list", "--limit", "5"]);
         assert!(cli.is_ok());
 
@@ -580,7 +592,7 @@ mod tests {
     #[test]
     fn test_empty_website_validation() {
         let password = Password::new(
-            "".to_string(),
+            "  ".to_string(), // Test with whitespace
             "user123".to_string(),
             "user@example.com".to_string(),
             "secret123".to_string(),
@@ -589,13 +601,19 @@ mod tests {
     }
 
     #[test]
-    fn test_csv_parsing() {
-        let line = "github.com,user123,user@example.com,secret123";
-        let password = Password::from_csv_line(line);
-        assert!(password.is_ok());
+    fn test_json_serialization() {
+        let password = Password::new(
+            "github.com".to_string(),
+            "user123".to_string(),
+            "user@example.com".to_string(),
+            "secret123".to_string(),
+        )
+        .unwrap();
 
-        let password = password.unwrap();
-        assert_eq!(password.website, "github.com");
-        assert_eq!(password.username, "user123");
+        let json = serde_json::to_string(&password).unwrap();
+        let decoded: Password = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(decoded.website, "github.com");
+        assert_eq!(decoded.username, "user123");
     }
 }
