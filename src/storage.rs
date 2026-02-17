@@ -1,5 +1,6 @@
 use crate::error::{PasswordManagerError, Result};
 use crate::models::Password;
+use crate::utility::get_file_path;
 use aes_gcm::{
     Aes256Gcm, Nonce,
     aead::{Aead, KeyInit},
@@ -11,10 +12,6 @@ use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
 use std::env;
 use std::fs;
-use std::path::PathBuf;
-
-/// Name of the encrypted file where passwords are stored.
-const ENC_FILE: &str = ".pwd.enc";
 
 /// Salt size for Argon2 (16 bytes = 128 bits).
 const SALT_LEN: usize = 16;
@@ -39,14 +36,6 @@ struct EncryptedStore {
 /// Uses `once_cell::sync::OnceCell` because `std::sync::OnceLock::get_or_try_init`
 /// is still behind an unstable feature gate (tracking issue #109737).
 static MASTER_PASSWORD: OnceCell<String> = OnceCell::new();
-
-/// Returns the full path to the encrypted storage file in the user's home directory.
-fn get_file_path() -> Result<PathBuf> {
-    let home_dir = env::var("HOME").map_err(|_| {
-        PasswordManagerError::NotFound("HOME environment variable not set".to_string())
-    })?;
-    Ok(PathBuf::from(home_dir).join(ENC_FILE))
-}
 
 /// Returns the master password, prompting the user at most once per process.
 ///

@@ -1,16 +1,8 @@
 use clap::Parser;
-use std::process;
-
-mod app;
-mod cli;
-mod error;
-mod handlers;
-mod models;
-mod storage;
-mod ui;
-
 use cli::{Cli, Commands};
+use crabpwd::{cli, error, handlers};
 use error::Result;
+use std::process;
 
 fn main() {
     if let Err(e) = run() {
