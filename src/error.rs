@@ -7,6 +7,7 @@ pub enum PasswordManagerError {
     Parse(String),
     NotFound(String),
     InvalidFormat(String),
+    Crypto(String),
 }
 
 /// Formats the error for a user-friendly display in the terminal.
@@ -17,6 +18,7 @@ impl fmt::Display for PasswordManagerError {
             PasswordManagerError::Parse(msg) => write!(f, "Parse error: {}", msg),
             PasswordManagerError::NotFound(msg) => write!(f, "Not found: {}", msg),
             PasswordManagerError::InvalidFormat(msg) => write!(f, "Invalid format: {}", msg),
+            PasswordManagerError::Crypto(msg) => write!(f, "Crypto error: {}", msg),
         }
     }
 }

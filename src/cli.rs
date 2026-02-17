@@ -1,12 +1,12 @@
-use clap::{Args, Parser, Subcommand};
 use crate::error::{PasswordManagerError, Result};
 use crate::models::Password;
+use clap::{Args, Parser, Subcommand};
 
 /// Defines the main command-line interface structure using clap.
 #[derive(Parser)]
 #[command(
     name = "crabpwd",
-    version = "0.1.0",
+    version = "0.2.0",
     author = "Ivan Guerreschi",
     about = "Password manager written in Rust",
     long_about = "crabpwd is a command-line password manager."
@@ -74,19 +74,18 @@ impl AddArgs {
 
     /// Tries to build a `Password` from the arguments.
     pub fn to_password(self) -> Result<Password> {
-        let website = self
-            .website
-            .ok_or_else(|| PasswordManagerError::InvalidFormat("Website is required".to_string()))?;
-        let username = self
-            .username
-            .ok_or_else(|| PasswordManagerError::InvalidFormat("Username is required".to_string()))?;
+        let website = self.website.ok_or_else(|| {
+            PasswordManagerError::InvalidFormat("Website is required".to_string())
+        })?;
+        let username = self.username.ok_or_else(|| {
+            PasswordManagerError::InvalidFormat("Username is required".to_string())
+        })?;
         let email = self
             .email
             .ok_or_else(|| PasswordManagerError::InvalidFormat("Email is required".to_string()))?;
-        let password = self
-            .password
-            .ok_or_else(|| PasswordManagerError::InvalidFormat("Password is required".to_string()))?;
-
+        let password = self.password.ok_or_else(|| {
+            PasswordManagerError::InvalidFormat("Password is required".to_string())
+        })?;
         Password::new(website, username, email, password)
     }
 }
@@ -104,17 +103,20 @@ mod tests {
 
     #[test]
     fn test_cli_parsing() {
-        assert!(Cli::try_parse_from(&["crabpwd", "list", "--limit", "5"]).is_ok());
-        assert!(Cli::try_parse_from(&["crabpwd", "add", "-w", "github.com"]).is_ok());
-        assert!(Cli::try_parse_from(&["crabpwd", "delete", "1"]).is_ok());
-        assert!(Cli::try_parse_from(&["crabpwd", "search", "github"]).is_ok());
+        assert!(Cli::try_parse_from(["crabpwd", "list", "--limit", "5"]).is_ok());
+        assert!(Cli::try_parse_from(["crabpwd", "add", "-w", "github.com"]).is_ok());
+        assert!(Cli::try_parse_from(["crabpwd", "delete", "1"]).is_ok());
+        assert!(Cli::try_parse_from(["crabpwd", "search", "github"]).is_ok());
     }
 
     #[test]
     fn test_missing_fields_detection() {
         let args = AddArgs {
             website: Some("test.com".to_string()),
-            username: None, email: None, password: None, interactive: false,
+            username: None,
+            email: None,
+            password: None,
+            interactive: false,
         };
         assert!(args.are_any_fields_missing());
 

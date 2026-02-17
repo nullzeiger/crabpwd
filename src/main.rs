@@ -1,7 +1,6 @@
 use clap::Parser;
 use std::process;
 
-// Declaration of all local modules
 mod app;
 mod cli;
 mod error;
@@ -22,7 +21,6 @@ fn main() {
 
 fn run() -> Result<()> {
     let cli = Cli::parse();
-
     match cli.command {
         Commands::List(args) => handlers::handle_list(args),
         Commands::Add(args) => handlers::handle_add(args),

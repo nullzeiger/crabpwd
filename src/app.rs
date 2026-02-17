@@ -39,7 +39,7 @@ pub fn search_passwords(query: &str) -> Result<Vec<(usize, Password)>> {
                 || pwd.username.to_lowercase().contains(&query_lower)
                 || pwd.email.to_lowercase().contains(&query_lower)
             {
-                Some((i + 1, pwd)) // 1-based index
+                Some((i + 1, pwd))
             } else {
                 None
             }
@@ -54,7 +54,7 @@ pub fn list_passwords(limit: Option<usize>) -> Result<Vec<(usize, Password)>> {
     let mut results: Vec<(usize, Password)> = passwords
         .into_iter()
         .enumerate()
-        .map(|(i, pwd)| (i + 1, pwd)) // 1-based index
+        .map(|(i, pwd)| (i + 1, pwd))
         .collect();
     if let Some(lim) = limit {
         results.truncate(lim);

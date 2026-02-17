@@ -1,96 +1,62 @@
 use crate::app;
 use crate::cli::{AddArgs, DeleteArgs, ListArgs, SearchArgs};
 use crate::error::{PasswordManagerError, Result};
-use crate::models::Password;
 use crate::ui;
-use std::process;
+use std::io::{self, Write};
 
-/// Handles the 'list' subcommand.
+/// Prompts the user to enter a value interactively.
+fn prompt(label: &str) -> Result<String> {
+    print!("{}: ", label);
+    io::stdout().flush()?;
+    let mut input = String::new();
+    io::stdin().read_line(&mut input)?;
+    Ok(input.trim().to_string())
+}
+
+/// Handles the `list` subcommand.
 pub fn handle_list(args: ListArgs) -> Result<()> {
-    let passwords = app::list_passwords(args.limit)?;
-    if passwords.is_empty() {
-        println!("No passwords stored yet. Use 'crabpwd add' to add one.");
-        return Ok(());
-    }
-    match args.limit {
-        Some(limit) => println!("Showing first {} password(s):", limit),
-        None => println!("All stored passwords:"),
-    }
-    println!();
-    ui::print_passwords(&passwords);
+    let results = app::list_passwords(args.limit)?;
+    ui::print_password_list(&results);
     Ok(())
 }
 
-/// Handles the 'add' subcommand.
-pub fn handle_add(args: AddArgs) -> Result<()> {
-    let password = if args.interactive || args.are_any_fields_missing() {
-        collect_password_interactively(args)?
-    } else {
-        args.to_password()?
-    };
-    app::add_password(password)?;
-    println!("✓ Password added successfully!");
-    Ok(())
-}
-
-/// Handles the 'delete' subcommand.
-pub fn handle_delete(args: DeleteArgs) -> Result<()> {
-    let passwords = app::list_passwords(None)?;
-    let password_to_delete = passwords.iter().find(|(idx, _)| *idx == args.index);
-
-    if let Some((_, password)) = password_to_delete {
-        println!("You are about to delete:");
-        println!("  Website: {}", password.website);
-        println!("  Username: {}", password.username);
-        if ui::confirm_action("Are you sure you want to delete this password?")? {
-            app::delete_password(args.index)?;
-            println!("✓ Password deleted successfully!");
-        } else {
-            println!("Deletion cancelled.");
+/// Handles the `add` subcommand, with optional interactive mode.
+pub fn handle_add(mut args: AddArgs) -> Result<()> {
+    if args.interactive || args.are_any_fields_missing() {
+        if args.website.is_none() {
+            args.website = Some(prompt("Website")?);
         }
-    } else {
-        return Err(PasswordManagerError::NotFound(format!(
-            "No password found at index {}.",
-            args.index
-        )));
+        if args.username.is_none() {
+            args.username = Some(prompt("Username")?);
+        }
+        if args.email.is_none() {
+            args.email = Some(prompt("Email")?);
+        }
+        if args.password.is_none() {
+            args.password =
+                Some(rpassword::prompt_password("Password: ").map_err(PasswordManagerError::Io)?);
+        }
     }
+
+    let password = args.to_password()?;
+    app::add_password(password)?;
+    println!("Password added successfully.");
     Ok(())
 }
 
-/// Handles the 'search' subcommand.
+/// Handles the `delete` subcommand.
+pub fn handle_delete(args: DeleteArgs) -> Result<()> {
+    app::delete_password(args.index)?;
+    println!("Password at index {} deleted.", args.index);
+    Ok(())
+}
+
+/// Handles the `search` subcommand.
 pub fn handle_search(args: SearchArgs) -> Result<()> {
-    let query = match args.query {
-        Some(q) if !q.trim().is_empty() => q,
-        _ => return Err(PasswordManagerError::InvalidFormat(
-            "Please provide a search query.".to_string(),
-        )),
-    };
+    let query = args.query.ok_or_else(|| {
+        PasswordManagerError::InvalidFormat("Search query is required".to_string())
+    })?;
     let results = app::search_passwords(&query)?;
-    if results.is_empty() {
-        println!("No passwords found matching '{}'", query);
-    } else {
-        println!("Found {} password(s) matching '{}':", results.len(), query);
-        println!();
-        ui::print_passwords(&results);
-    }
+    ui::print_password_list(&results);
     Ok(())
-}
-
-/// Collects password data interactively.
-fn collect_password_interactively(args: AddArgs) -> Result<Password> {
-    println!("=== Adding New Password (Interactive) ===");
-    let website = args.website.unwrap_or_else(|| {
-        ui::prompt_for_input("Website/Service", true).unwrap_or_else(|_| process::exit(1))
-    });
-    let username = args.username.unwrap_or_else(|| {
-        ui::prompt_for_input("Username", true).unwrap_or_else(|_| process::exit(1))
-    });
-    let email = args.email.unwrap_or_else(|| {
-        ui::prompt_for_input("Email", true).unwrap_or_else(|_| process::exit(1))
-    });
-    let password = args.password.unwrap_or_else(|| {
-        ui::prompt_for_password("Password").unwrap_or_else(|_| process::exit(1))
-    });
-    println!();
-    Password::new(website, username, email, password)
 }
